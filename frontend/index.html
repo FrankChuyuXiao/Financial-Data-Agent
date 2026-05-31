@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>FinSight Orchestrator</title>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1100px;
+            margin: 30px auto;
+            background: #f6f7fb;
+            color: #222;
+        }
+        h1 {
+            margin-bottom: 5px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        #chat {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            min-height: 350px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        }
+        .msg {
+            padding: 12px;
+            border-radius: 10px;
+            margin: 12px 0;
+            white-space: pre-wrap;
+        }
+        .user {
+            background: #e8f0ff;
+        }
+        .assistant {
+            background: #f1f1f1;
+        }
+        .trace {
+            background: #fff8dc;
+            font-size: 13px;
+            overflow-x: auto;
+        }
+        #inputRow {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        #question {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid #bbb;
+            font-size: 15px;
+        }
+        button {
+            padding: 12px 18px;
+            border: none;
+            border-radius: 10px;
+            background: #2563eb;
+            color: white;
+            cursor: pointer;
+            font-size: 15px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        .plot {
+            background: white;
+            border-radius: 12px;
+            margin: 15px 0;
+            padding: 10px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body>
+    <h1>FinSight Orchestrator</h1>
+    <div class="subtitle">Multi-agent AI analytics system for financial stock indicators</div>
+
+    <div id="chat"></div>
+
+    <div id="inputRow">
+        <input id="question" placeholder="Ask a financial analytics or generic-domain question..." />
+        <button onclick="askQuestion()">Ask</button>
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:8000/ask";
+        const chat = document.getElementById("chat");
+        const questionInput = document.getElementById("question");
+
+        questionInput.addEventListener("keydown", function(event) {
+            if (event.key === "Enter") {
+                askQuestion();
+            }
+        });
+
+        function addMessage(role, text, cssClass) {
+            const div = document.createElement("div");
+            div.className = "msg " + cssClass;
+            div.textContent = role + ":\n" + text;
+            chat.appendChild(div);
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        function addTrace(trace) {
+            const details = document.createElement("details");
+            details.className = "msg trace";
+            const summary = document.createElement("summary");
+            summary.textContent = "Execution / Validation Trace";
+            details.appendChild(summary);
+
+            const pre = document.createElement("pre");
+            pre.textContent = JSON.stringify(trace, null, 2);
+            details.appendChild(pre);
+
+            chat.appendChild(details);
+        }
+
+        function addPlots(plots) {
+            if (!plots || plots.length === 0) return;
+
+            plots.forEach((plot, idx) => {
+                const div = document.createElement("div");
+                div.className = "plot";
+                div.id = "plot-" + Date.now() + "-" + idx;
+                chat.appendChild(div);
+
+                try {
+                    const fig = JSON.parse(plot.plotly_json);
+                    Plotly.newPlot(div.id, fig.data, fig.layout);
+                } catch (e) {
+                    div.textContent = "Could not render plot: " + e;
+                }
+            });
+        }
+
+        async function askQuestion() {
+            const question = questionInput.value.trim();
+            if (!question) return;
+
+            addMessage("User", question, "user");
+            questionInput.value = "";
+
+            try {
+                const res = await fetch(API_URL, {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({question})
+                });
+
+                const data = await res.json();
+
+                addMessage("Assistant", data.final_answer || "No answer returned.", "assistant");
+                addPlots(data.plots);
+                addTrace(data.trace || []);
+
+            } catch (err) {
+                addMessage("Error", String(err), "assistant");
+            }
+        }
+    </script>
+</body>
+</html>
